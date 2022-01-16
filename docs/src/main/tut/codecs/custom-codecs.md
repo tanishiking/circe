@@ -87,7 +87,7 @@ json.as[Map[Foo, Int]]
 
 It's often necessary to work with keys in your JSON objects that aren't idiomatic case class member
 names in Scala. While the standard generic derivation doesn't support this use case, the
-experimental circe-generic-extras module does provide two ways to transform your case class member
+experimental `generic-extras` module does provide two ways to transform your case class member
 names during encoding and decoding.
 
 In many cases the transformation is as simple as going from camel case to snake case, in which case
@@ -132,7 +132,7 @@ implicit val config: Configuration = Configuration.default
 Bar(13, "Qux").asJson
 ```
 
-It's worth noting that if you don't want to use the experimental generic-extras module, the
+It's worth noting that if you don't want to use the experimental `generic-extras` module, the
 completely unmagical `forProductN` version isn't really that much of a burden:
 
 ```scala mdoc:reset
@@ -151,4 +151,80 @@ User("Foo", "McBar").asJson
 Bar(13, "Qux").asJson
 ```
 
-While this version does involve a bit of boilerplate, it only requires circe-core, and may have slightly better runtime performance in some cases.
+
+While this version does involve a bit of boilerplate, it only requires `circe-core`, and may have slightly better runtime performance in some cases.
+
+### More configuration arguments
+
+Above we've seen how you can use `transformMemberNames` if the name of case class member names are different from the JSON keys.
+
+Here's how you can use `transformConstructorNames` when encoding/decoding ADTs:
+
+```scala mdoc:reset
+import io.circe.generic.extras._
+import io.circe.generic.extras.auto._
+import io.circe.parser._
+
+implicit val config: Configuration = Configuration.default.copy(
+  transformConstructorNames = _.toLowerCase
+)
+
+sealed trait Animal
+case class Dog(age: Int) extends Animal
+case class Cat(color: String) extends Animal
+
+decode[Animal]("""{"dog": {"age": 2}}""")
+decode[Animal]("""{"cat": {"color": "brown"}}""")
+```
+
+If you want to allow default values when a field is missing from the JSON, you can use `useDefaults`:
+
+```scala mdoc:reset
+import io.circe.generic.extras._
+import io.circe.generic.extras.auto._
+import io.circe.parser._
+
+implicit val config: Configuration = Configuration.default.copy(
+  useDefaults = true
+)
+
+case class User(firstName: String, lastName: String = "Doe")
+
+decode[User]("""{"firstName": "Foo"}""")
+```
+
+If `useDefaults = false`, the decoding would fail.
+
+See [here](https://circe.github.io/circe/codecs/adt.html#the-future) for a use of `discriminator`.
+
+And finally, we have `strictDecoding`.
+
+By default, if a JSON has extra fields, we decode it without errors:
+
+```scala mdoc:reset
+import io.circe.generic.extras._
+import io.circe.generic.extras.auto._
+import io.circe.parser._
+
+implicit val config: Configuration = Configuration.default
+
+case class User(firstName: String, lastName: String)
+
+decode[User]("""{"firstName": "Foo", "lastName": "Bar", "likesCats": true}""")
+```
+
+But we can be more strict, if we want to:
+
+```scala mdoc:reset
+import io.circe.generic.extras._
+import io.circe.generic.extras.auto._
+import io.circe.parser._
+
+implicit val config: Configuration = Configuration.default.copy(
+  strictDecoding = true
+)
+
+case class User(firstName: String, lastName: String)
+
+decode[User]("""{"firstName": "Foo", "lastName": "Bar", "likesCats": true}""")
+```
