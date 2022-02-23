@@ -426,6 +426,7 @@ lazy val circe = project
       """.stripMargin
   )
   .aggregate(aggregatedProjects: _*)
+  .dependsOn(core, generic, literal, parser)
 
 lazy val circeJS = project
   .settings(allSettings)
