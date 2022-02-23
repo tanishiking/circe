@@ -5,13 +5,14 @@ import sbtcrossproject.{ CrossProject, CrossType }
 import scala.xml.{ Elem, Node => XmlNode, NodeSeq => XmlNodeSeq }
 import scala.xml.transform.{ RewriteRule, RuleTransformer }
 
-def Scala3 = "3.1.0"
+val Scala3 = "3.1.0"
 
 ThisBuild / organization := "io.circe"
 ThisBuild / crossScalaVersions := List(Scala3, "2.12.15", "2.13.8")
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
-ThisBuild / githubWorkflowJavaVersions := Seq("8", "11", "17").map(JavaSpec.temurin)
+val Java8 = "8"
+ThisBuild / githubWorkflowJavaVersions := Seq(Java8, "11", "17").map(JavaSpec.temurin)
 ThisBuild / githubWorkflowPublishTargetBranches := Nil
 ThisBuild / githubWorkflowArtifactUpload := false // TODO: Maybe enable this later for efficiency.
 ThisBuild / githubWorkflowBuildPreamble +=
@@ -19,13 +20,13 @@ ThisBuild / githubWorkflowBuildPreamble +=
     UseRef.Public("actions", "setup-node", "v2.4.0"),
     name = Some("Setup NodeJS v16"),
     params = Map("node-version" -> "16"),
-    cond = Some("matrix.ci == 'ciNodeJS'")
+    cond = Some("${{ matrix.ci == 'ciNodeJS' }}")
   )
 ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Sbt(
     List(
       "clean",
-      "validateJVM"
+      "testJVM"
     ),
     id = None,
     name = Some("Test JVM (without coverage)"),
@@ -35,8 +36,7 @@ ThisBuild / githubWorkflowBuild := Seq(
     List(
       "clean",
       "coverage",
-      "scalastyle",
-      "validateJVM",
+      "testJVM",
       "benchmark/test"
     ),
     id = None,
@@ -46,10 +46,11 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Sbt(
     List(
       "clean",
-      "validateJS"
+      "testJS"
     ),
     id = None,
-    name = Some("Test JS")
+    name = Some("Test JS"),
+    cond = Some("${{ matrix.java == '" + Java8 + "' }}") // Run JS tests ONLY on java8, because it doesn't matter
   ),
   WorkflowStep.Sbt(
     List("coverageReport"),
@@ -76,7 +77,7 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     "Scalafmt",
     githubWorkflowJobSetup.value.toList ::: List(
       WorkflowStep.Sbt(
-        List("scalafmtCheckAll", "scalafmtSbtCheck"),
+        List("scalastyle", "scalafmtCheckAll", "scalafmtSbtCheck"),
         name = Some("Scalafmt tests")
       )
     ),
@@ -862,15 +863,14 @@ lazy val CompileTime = config("compile-time")
 val formatCommands = ";scalafmtCheckAll;scalafmtSbtCheck"
 
 addCommandAlias("buildJVM", "circeJVM/compile")
-addCommandAlias("mimaReportBinaryIssuesJVM", "circeJVM/mimaReportBinaryIssues")
-addCommandAlias(
-  "validateJVM",
-  ";buildJVM;circeJVM/test" + formatCommands
-)
 addCommandAlias("buildJS", "circeJS/compile")
-addCommandAlias("mimaReportBinaryIssuesJS", "circeJVM/mimaReportBinaryIssues")
-addCommandAlias(
-  "validateJS",
-  ";buildJS;circeJS/test" + formatCommands
-)
+
+addCommandAlias("testJVM", ";buildJVM;circeJVM/test")
+addCommandAlias("testJS", ";buildJS;circeJS/test")
+
+addCommandAlias("validateJVM", "testJVM" + formatCommands)
+addCommandAlias("validateJS", "testJS" + formatCommands)
 addCommandAlias("validate", ";validateJVM;validateJS")
+
+addCommandAlias("mimaReportBinaryIssuesJVM", "circeJVM/mimaReportBinaryIssues")
+addCommandAlias("mimaReportBinaryIssuesJS", "circeJS/mimaReportBinaryIssues")
